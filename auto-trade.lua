@@ -1,51 +1,135 @@
--- Auto Trade Script for Steal a Brainrot
+-- Auto Trade Script for Steal a Brainrot (Volt compatible)
 -- 1. Auto-accept incoming trade requests
 -- 2. Auto-ready when the other player offers a brainrot
 -- 3. Auto-accept trade confirmation
 
 local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-local CHECK_INTERVAL = 0.15
+local CHECK_INTERVAL = 0.2
+
+local function clickButton(button)
+    if not button then return end
+
+    -- Method 1: firesignal (most executors)
+    pcall(function()
+        if firesignal then
+            firesignal(button.MouseButton1Click)
+        end
+    end)
+
+    -- Method 2: fireclick
+    pcall(function()
+        if fireclick then
+            fireclick(button)
+        end
+    end)
+
+    -- Method 3: VirtualInputManager
+    pcall(function()
+        local pos = button.AbsolutePosition
+        local size = button.AbsoluteSize
+        local x = pos.X + size.X / 2
+        local y = pos.Y + size.Y / 2
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+        task.wait(0.05)
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+    end)
+
+    -- Method 4: Activate
+    pcall(function()
+        button:Activate()
+    end)
+
+    -- Method 5: fire all connections on MouseButton1Click
+    pcall(function()
+        if getconnections then
+            for _, conn in ipairs(getconnections(button.MouseButton1Click)) do
+                pcall(function()
+                    conn:Fire()
+                end)
+            end
+        end
+    end)
+
+    -- Method 6: fire MouseButton1Down + MouseButton1Up
+    pcall(function()
+        if firesignal then
+            firesignal(button.MouseButton1Down)
+            task.wait(0.05)
+            firesignal(button.MouseButton1Up)
+        end
+    end)
+end
+
+local function findAllButtons(parent)
+    local buttons = {}
+    for _, desc in ipairs(parent:GetDescendants()) do
+        if desc:IsA("TextButton") or desc:IsA("ImageButton") then
+            table.insert(buttons, desc)
+        end
+    end
+    return buttons
+end
+
+local function getButtonText(button)
+    if button:IsA("TextButton") and button.Text ~= "" then
+        return button.Text
+    end
+    for _, child in ipairs(button:GetDescendants()) do
+        if child:IsA("TextLabel") and child.Text ~= "" then
+            return child.Text
+        end
+    end
+    return ""
+end
 
 local function findButtonByText(parent, targetText)
-    for _, desc in ipairs(parent:GetDescendants()) do
-        if (desc:IsA("TextButton") or desc:IsA("ImageButton")) and desc.Visible then
-            local textLabel = desc:FindFirstChildOfClass("TextLabel")
-            if textLabel and string.lower(textLabel.Text) == string.lower(targetText) then
-                return desc
-            end
-            if desc:IsA("TextButton") and string.lower(desc.Text) == string.lower(targetText) then
-                return desc
-            end
+    local target = string.lower(targetText)
+    for _, btn in ipairs(findAllButtons(parent)) do
+        local text = string.lower(getButtonText(btn))
+        if text == target then
+            return btn
         end
     end
     return nil
 end
 
-local function findVisibleFrameWithText(parent, targetText)
+local function hasText(parent, targetText)
+    local target = string.lower(targetText)
     for _, desc in ipairs(parent:GetDescendants()) do
-        if desc:IsA("TextLabel") and string.lower(desc.Text) == string.lower(targetText) then
-            return desc
+        if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+            if string.lower(desc.Text) == target then
+                return true
+            end
         end
     end
-    return nil
+    return false
 end
 
-local function hasOtherPlayerOfferedItems(tradeGui)
-    for _, desc in ipairs(tradeGui:GetDescendants()) do
-        if desc:IsA("TextLabel") then
-            local text = desc.Text
-            if string.match(text, "Offer") and string.match(text, "@") then
-                local parent = desc.Parent
-                if parent then
-                    for _, child in ipairs(parent:GetDescendants()) do
-                        if (child:IsA("ImageLabel") or child:IsA("Frame")) and child.Visible then
-                            local nameLabel = child:FindFirstChildOfClass("TextLabel")
-                            if nameLabel and nameLabel.Text ~= "" and not string.match(nameLabel.Text, "Offer") then
-                                return true
-                            end
+local function hasTextMatch(parent, pattern)
+    for _, desc in ipairs(parent:GetDescendants()) do
+        if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+            if string.match(desc.Text, pattern) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function otherPlayerHasItems(gui)
+    for _, desc in ipairs(gui:GetDescendants()) do
+        if desc:IsA("TextLabel") and string.match(desc.Text, "@") and string.match(desc.Text, "Offer") then
+            local countMatch = nil
+            for _, d in ipairs(gui:GetDescendants()) do
+                if d:IsA("TextLabel") then
+                    local current, total = string.match(d.Text, "(%d+)/(%d+)")
+                    if current and total and string.match(d.Text, "@") then
+                        if tonumber(current) > 0 then
+                            return true
                         end
                     end
                 end
@@ -55,133 +139,82 @@ local function hasOtherPlayerOfferedItems(tradeGui)
     return false
 end
 
-local function clickButton(button)
-    if button and button:IsA("GuiButton") then
-        local connection
-        local clicked = false
-        pcall(function()
-            button:Activate()
-            clicked = true
-        end)
-        if not clicked then
-            pcall(function()
-                firesignal(button.MouseButton1Click)
-            end)
-        end
-        if not clicked then
-            pcall(function()
-                fireclickdetector(button)
-            end)
+-- Step 1: Auto-accept trade requests
+local function stepAcceptRequest()
+    for _, gui in ipairs(PlayerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") then
+            if hasText(gui, "Trade Request") or hasTextMatch(gui, "wants to trade") then
+                local btn = findButtonByText(gui, "Accept")
+                if btn then
+                    print("[Auto Trade] Found Trade Request -> clicking Accept")
+                    clickButton(btn)
+                    return true
+                end
+            end
         end
     end
+    return false
 end
 
-local autoAcceptEnabled = true
-local autoReadyEnabled = true
-local autoConfirmEnabled = true
-
-local function checkTradeRequest()
+-- Step 2: Auto-ready when other player offered brainrots
+local function stepAutoReady()
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled then
-            local tradeRequestLabel = findVisibleFrameWithText(gui, "Trade Request")
-            if not tradeRequestLabel then
-                for _, desc in ipairs(gui:GetDescendants()) do
-                    if desc:IsA("TextLabel") and string.match(desc.Text, "wants to trade") then
-                        tradeRequestLabel = desc
-                        break
+        if gui:IsA("ScreenGui") then
+            if hasText(gui, "Select Brainrots to offer") then
+                if otherPlayerHasItems(gui) then
+                    local btn = findButtonByText(gui, "READY")
+                    if not btn then
+                        btn = findButtonByText(gui, "Ready")
+                    end
+                    if btn then
+                        print("[Auto Trade] Other player has items -> clicking READY")
+                        clickButton(btn)
+                        return true
                     end
                 end
             end
-
-            if tradeRequestLabel then
-                local acceptBtn = findButtonByText(gui, "Accept")
-                if acceptBtn then
-                    return acceptBtn
-                end
-            end
         end
     end
-    return nil
+    return false
 end
 
-local function checkTradeReady()
+-- Step 3: Auto-accept confirmation
+local function stepAutoConfirm()
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled then
-            local tradeLabel = findVisibleFrameWithText(gui, "Trade")
-            local selectLabel = findVisibleFrameWithText(gui, "Select Brainrots to offer")
+        if gui:IsA("ScreenGui") then
+            local hasConfirmed = hasText(gui, "Confirmed!")
+            local hasTimer = hasTextMatch(gui, "%d+s Left")
 
-            if tradeLabel and selectLabel then
-                if hasOtherPlayerOfferedItems(gui) then
+            if hasConfirmed or hasTimer then
+                local btn = findButtonByText(gui, "ACCEPT")
+                if not btn then
+                    btn = findButtonByText(gui, "Accept")
+                end
+                if btn then
                     local readyBtn = findButtonByText(gui, "READY")
-                    if readyBtn then
-                        return readyBtn
+                    if not readyBtn then
+                        print("[Auto Trade] Trade confirmed -> clicking ACCEPT")
+                        clickButton(btn)
+                        return true
                     end
                 end
             end
         end
     end
-    return nil
+    return false
 end
 
-local function checkTradeConfirmation()
-    for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled then
-            local confirmedLabel = findVisibleFrameWithText(gui, "Confirmed!")
-            if confirmedLabel then
-                local acceptBtn = findButtonByText(gui, "ACCEPT")
-                if acceptBtn then
-                    return acceptBtn
-                end
-            end
-
-            for _, desc in ipairs(gui:GetDescendants()) do
-                if desc:IsA("TextLabel") and string.match(desc.Text, "%d+s Left") then
-                    local acceptBtn = findButtonByText(gui, "ACCEPT")
-                    if acceptBtn then
-                        local readyBtn = findButtonByText(gui, "READY")
-                        if not readyBtn then
-                            return acceptBtn
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return nil
-end
-
-print("[Auto Trade] Script loaded!")
-print("[Auto Trade] Auto Accept: ON")
+print("=============================================")
+print("[Auto Trade] Script loaded! (Volt compatible)")
+print("[Auto Trade] Auto Accept Trade Request: ON")
 print("[Auto Trade] Auto Ready: ON")
 print("[Auto Trade] Auto Confirm: ON")
+print("=============================================")
 
 while task.wait(CHECK_INTERVAL) do
     pcall(function()
-        if autoAcceptEnabled then
-            local acceptBtn = checkTradeRequest()
-            if acceptBtn then
-                print("[Auto Trade] Accepting trade request...")
-                clickButton(acceptBtn)
-                task.wait(0.5)
-            end
-        end
-
-        if autoReadyEnabled then
-            local readyBtn = checkTradeReady()
-            if readyBtn then
-                print("[Auto Trade] Other player offered items, clicking Ready...")
-                clickButton(readyBtn)
-                task.wait(0.5)
-            end
-        end
-
-        if autoConfirmEnabled then
-            local confirmBtn = checkTradeConfirmation()
-            if confirmBtn then
-                print("[Auto Trade] Confirming trade...")
-                clickButton(confirmBtn)
-                task.wait(0.5)
-            end
-        end
+        stepAcceptRequest()
+        stepAutoReady()
+        stepAutoConfirm()
     end)
 end

@@ -1,4 +1,5 @@
 -- Auto Trade Script for Steal a Brainrot (Volt compatible)
+-- Uses event triggers (DescendantAdded) for instant reaction
 -- 1. Auto-accept incoming trade requests
 -- 2. Auto-ready when the other player offers a brainrot
 -- 3. Auto-accept trade confirmation
@@ -8,26 +9,21 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-local CHECK_INTERVAL = 0.2
-
 local function clickButton(button)
     if not button then return end
 
-    -- Method 1: firesignal (most executors)
     pcall(function()
         if firesignal then
             firesignal(button.MouseButton1Click)
         end
     end)
 
-    -- Method 2: fireclick
     pcall(function()
         if fireclick then
             fireclick(button)
         end
     end)
 
-    -- Method 3: VirtualInputManager
     pcall(function()
         local pos = button.AbsolutePosition
         local size = button.AbsoluteSize
@@ -38,12 +34,10 @@ local function clickButton(button)
         VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
     end)
 
-    -- Method 4: Activate
     pcall(function()
         button:Activate()
     end)
 
-    -- Method 5: fire all connections on MouseButton1Click
     pcall(function()
         if getconnections then
             for _, conn in ipairs(getconnections(button.MouseButton1Click)) do
@@ -54,7 +48,6 @@ local function clickButton(button)
         end
     end)
 
-    -- Method 6: fire MouseButton1Down + MouseButton1Up
     pcall(function()
         if firesignal then
             firesignal(button.MouseButton1Down)
@@ -64,90 +57,60 @@ local function clickButton(button)
     end)
 end
 
-local function findAllButtons(parent)
-    local buttons = {}
-    for _, desc in ipairs(parent:GetDescendants()) do
-        if desc:IsA("TextButton") or desc:IsA("ImageButton") then
-            table.insert(buttons, desc)
-        end
-    end
-    return buttons
-end
-
 local function getButtonText(button)
     if button:IsA("TextButton") and button.Text ~= "" then
-        return button.Text
+        return string.lower(button.Text)
     end
     for _, child in ipairs(button:GetDescendants()) do
         if child:IsA("TextLabel") and child.Text ~= "" then
-            return child.Text
+            return string.lower(child.Text)
         end
     end
     return ""
 end
 
-local function findButtonByText(parent, targetText)
+local function findButtonInParent(parent, targetText)
     local target = string.lower(targetText)
-    for _, btn in ipairs(findAllButtons(parent)) do
-        local text = string.lower(getButtonText(btn))
-        if text == target then
-            return btn
+    for _, desc in ipairs(parent:GetDescendants()) do
+        if desc:IsA("TextButton") or desc:IsA("ImageButton") then
+            if getButtonText(desc) == target then
+                return desc
+            end
         end
     end
     return nil
 end
 
-local function hasText(parent, targetText)
+local function findTextInParent(parent, targetText)
     local target = string.lower(targetText)
     for _, desc in ipairs(parent:GetDescendants()) do
-        if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+        if (desc:IsA("TextLabel") or desc:IsA("TextButton")) then
             if string.lower(desc.Text) == target then
-                return true
+                return desc
             end
         end
     end
-    return false
+    return nil
 end
 
-local function hasTextMatch(parent, pattern)
+local function findTextMatchInParent(parent, pattern)
     for _, desc in ipairs(parent:GetDescendants()) do
-        if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+        if (desc:IsA("TextLabel") or desc:IsA("TextButton")) then
             if string.match(desc.Text, pattern) then
-                return true
+                return desc
             end
         end
     end
-    return false
+    return nil
 end
 
 local function otherPlayerHasItems(gui)
     for _, desc in ipairs(gui:GetDescendants()) do
-        if desc:IsA("TextLabel") and string.match(desc.Text, "@") and string.match(desc.Text, "Offer") then
-            local countMatch = nil
-            for _, d in ipairs(gui:GetDescendants()) do
-                if d:IsA("TextLabel") then
-                    local current, total = string.match(d.Text, "(%d+)/(%d+)")
-                    if current and total and string.match(d.Text, "@") then
-                        if tonumber(current) > 0 then
-                            return true
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return false
-end
-
--- Step 1: Auto-accept trade requests
-local function stepAcceptRequest()
-    for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") then
-            if hasText(gui, "Trade Request") or hasTextMatch(gui, "wants to trade") then
-                local btn = findButtonByText(gui, "Accept")
-                if btn then
-                    print("[Auto Trade] Found Trade Request -> clicking Accept")
-                    clickButton(btn)
+        if desc:IsA("TextLabel") then
+            local text = desc.Text
+            if string.match(text, "@") then
+                local current, total = string.match(text, "(%d+)/(%d+)")
+                if current and total and tonumber(current) > 0 then
                     return true
                 end
             end
@@ -156,65 +119,158 @@ local function stepAcceptRequest()
     return false
 end
 
--- Step 2: Auto-ready when other player offered brainrots
-local function stepAutoReady()
-    for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") then
-            if hasText(gui, "Select Brainrots to offer") then
+local function processGui(gui)
+    if not gui:IsA("ScreenGui") then return end
+
+    -- TRIGGER 1: Trade Request popup -> click Accept
+    if findTextInParent(gui, "Trade Request") or findTextMatchInParent(gui, "wants to trade") then
+        task.wait(0.1)
+        local acceptBtn = findButtonInParent(gui, "accept")
+        if acceptBtn then
+            print("[Auto Trade] TRIGGER: Trade Request detected -> clicking Accept!")
+            clickButton(acceptBtn)
+            return
+        end
+    end
+
+    -- TRIGGER 3: Confirmation stage -> click ACCEPT
+    if findTextInParent(gui, "Confirmed!") or findTextMatchInParent(gui, "%d+s Left") then
+        local acceptBtn = findButtonInParent(gui, "accept")
+        if acceptBtn then
+            local readyBtn = findButtonInParent(gui, "ready")
+            if not readyBtn then
+                print("[Auto Trade] TRIGGER: Confirmation detected -> clicking ACCEPT!")
+                clickButton(acceptBtn)
+                return
+            end
+        end
+    end
+end
+
+local function setupTriggers(gui)
+    if not gui:IsA("ScreenGui") then return end
+
+    processGui(gui)
+
+    gui.DescendantAdded:Connect(function(desc)
+        task.wait(0.1)
+
+        -- TRIGGER 1: Trade Request appeared
+        if desc:IsA("TextLabel") then
+            if string.lower(desc.Text) == "trade request" or string.match(desc.Text, "wants to trade") then
+                task.wait(0.15)
+                local acceptBtn = findButtonInParent(gui, "accept")
+                if acceptBtn then
+                    print("[Auto Trade] TRIGGER: Trade Request detected -> clicking Accept!")
+                    clickButton(acceptBtn)
+                end
+            end
+        end
+
+        if (desc:IsA("TextButton") or desc:IsA("ImageButton")) then
+            local text = getButtonText(desc)
+            if text == "accept" then
+                if findTextInParent(gui, "Trade Request") or findTextMatchInParent(gui, "wants to trade") then
+                    print("[Auto Trade] TRIGGER: Accept button appeared on Trade Request -> clicking!")
+                    task.wait(0.1)
+                    clickButton(desc)
+                end
+            end
+        end
+
+        -- TRIGGER 2: Other player added items -> click READY
+        if desc:IsA("TextLabel") or desc:IsA("ImageLabel") or desc:IsA("Frame") then
+            if findTextInParent(gui, "Select Brainrots to offer") then
                 if otherPlayerHasItems(gui) then
-                    local btn = findButtonByText(gui, "READY")
-                    if not btn then
-                        btn = findButtonByText(gui, "Ready")
-                    end
-                    if btn then
-                        print("[Auto Trade] Other player has items -> clicking READY")
-                        clickButton(btn)
-                        return true
+                    local readyBtn = findButtonInParent(gui, "ready")
+                    if readyBtn then
+                        print("[Auto Trade] TRIGGER: Other player added items -> clicking READY!")
+                        clickButton(readyBtn)
                     end
                 end
             end
         end
-    end
-    return false
-end
 
--- Step 3: Auto-accept confirmation
-local function stepAutoConfirm()
-    for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") then
-            local hasConfirmed = hasText(gui, "Confirmed!")
-            local hasTimer = hasTextMatch(gui, "%d+s Left")
-
-            if hasConfirmed or hasTimer then
-                local btn = findButtonByText(gui, "ACCEPT")
-                if not btn then
-                    btn = findButtonByText(gui, "Accept")
-                end
-                if btn then
-                    local readyBtn = findButtonByText(gui, "READY")
+        -- TRIGGER 3: Confirmation -> click ACCEPT
+        if desc:IsA("TextLabel") then
+            if desc.Text == "Confirmed!" or string.match(desc.Text, "%d+s Left") then
+                task.wait(0.1)
+                local acceptBtn = findButtonInParent(gui, "accept")
+                if acceptBtn then
+                    local readyBtn = findButtonInParent(gui, "ready")
                     if not readyBtn then
-                        print("[Auto Trade] Trade confirmed -> clicking ACCEPT")
-                        clickButton(btn)
-                        return true
+                        print("[Auto Trade] TRIGGER: Confirmation detected -> clicking ACCEPT!")
+                        clickButton(acceptBtn)
                     end
                 end
             end
         end
-    end
-    return false
+    end)
 end
+
+-- Setup triggers for existing GUIs
+for _, gui in ipairs(PlayerGui:GetChildren()) do
+    pcall(function()
+        setupTriggers(gui)
+    end)
+end
+
+-- Setup triggers for any new GUIs that appear
+PlayerGui.ChildAdded:Connect(function(gui)
+    pcall(function()
+        task.wait(0.1)
+        setupTriggers(gui)
+    end)
+end)
+
+-- Backup polling loop (in case events miss something)
+spawn(function()
+    while task.wait(0.5) do
+        pcall(function()
+            for _, gui in ipairs(PlayerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") then
+                    -- Check for trade request
+                    if findTextInParent(gui, "Trade Request") or findTextMatchInParent(gui, "wants to trade") then
+                        local acceptBtn = findButtonInParent(gui, "accept")
+                        if acceptBtn then
+                            print("[Auto Trade] BACKUP: Trade Request found -> clicking Accept!")
+                            clickButton(acceptBtn)
+                        end
+                    end
+
+                    -- Check for ready
+                    if findTextInParent(gui, "Select Brainrots to offer") then
+                        if otherPlayerHasItems(gui) then
+                            local readyBtn = findButtonInParent(gui, "ready")
+                            if readyBtn then
+                                print("[Auto Trade] BACKUP: Ready available -> clicking READY!")
+                                clickButton(readyBtn)
+                            end
+                        end
+                    end
+
+                    -- Check for confirmation
+                    if findTextInParent(gui, "Confirmed!") or findTextMatchInParent(gui, "%d+s Left") then
+                        local acceptBtn = findButtonInParent(gui, "accept")
+                        if acceptBtn then
+                            local readyBtn = findButtonInParent(gui, "ready")
+                            if not readyBtn then
+                                print("[Auto Trade] BACKUP: Confirmation found -> clicking ACCEPT!")
+                                clickButton(acceptBtn)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
 
 print("=============================================")
 print("[Auto Trade] Script loaded! (Volt compatible)")
+print("[Auto Trade] Event triggers: ACTIVE")
+print("[Auto Trade] Backup polling: ACTIVE")
 print("[Auto Trade] Auto Accept Trade Request: ON")
 print("[Auto Trade] Auto Ready: ON")
 print("[Auto Trade] Auto Confirm: ON")
 print("=============================================")
-
-while task.wait(CHECK_INTERVAL) do
-    pcall(function()
-        stepAcceptRequest()
-        stepAutoReady()
-        stepAutoConfirm()
-    end)
-end

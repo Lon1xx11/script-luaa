@@ -5,28 +5,28 @@
 -- 3. ACCEPT only on trade confirmation
 
 local Players = game:GetService("Players")
-local GuiService = game:GetService("GuiService")
 local VIM = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-local guiInset = GuiService:GetGuiInset()
-
 local function clickElement(element)
     if not element then return end
+
+    -- Get center position (no GuiInset offset - AbsolutePosition already correct)
     local pos = element.AbsolutePosition
     local size = element.AbsoluteSize
     local x = pos.X + size.X / 2
-    local y = pos.Y + size.Y / 2 + guiInset.Y
+    local y = pos.Y + size.Y / 2
 
+    -- Method 1: VIM click without inset
     pcall(function()
         VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
         task.wait(0.05)
         VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
     end)
-    pcall(function()
-        firesignal(element.MouseButton1Click)
-    end)
+
+    -- Method 2: firesignal
+    pcall(function() firesignal(element.MouseButton1Click) end)
     pcall(function()
         firesignal(element.MouseButton1Down)
         task.wait(0.05)
@@ -62,8 +62,6 @@ local function hasTextMatch(parent, pattern)
     return false
 end
 
--- Check if opponent has offered items
--- Looks inside TradeLiveTrade -> Other -> ScrollingFrame for Template children (items)
 local function opponentHasItems(tlt)
     for _, desc in ipairs(tlt:GetDescendants()) do
         if desc.Name == "Other" then
@@ -91,13 +89,13 @@ print("=============================================")
 
 while task.wait(0.5) do
     pcall(function()
-        -- STAGE 1: Accept trade request (only when "Trade Request" + "wants to trade" visible)
+        -- STAGE 1: Accept trade request
         local dmp = PlayerGui:FindFirstChild("DuelsMachinePrompt")
         if dmp then
             if hasTextLabel(dmp, "Trade Request") and hasTextMatch(dmp, "wants to trade") then
                 local yesBtn = findByName(dmp, "ImageButton", "Yes")
                 if yesBtn then
-                    print("[Auto Trade] Trade Request detected -> Accepting!")
+                    print("[Auto Trade] Trade Request -> Accepting!")
                     clickElement(yesBtn)
                     task.wait(1)
                     return
@@ -110,7 +108,7 @@ while task.wait(0.5) do
             if hasTextLabel(tp, "Trade Request") and hasTextMatch(tp, "wants to trade") then
                 local yesBtn = findByName(tp, "ImageButton", "Yes")
                 if yesBtn then
-                    print("[Auto Trade] Trade Request detected -> Accepting! (TradePrompts)")
+                    print("[Auto Trade] Trade Request -> Accepting! (TradePrompts)")
                     clickElement(yesBtn)
                     task.wait(1)
                     return
@@ -122,21 +120,21 @@ while task.wait(0.5) do
         local tlt = PlayerGui:FindFirstChild("TradeLiveTrade")
         if not tlt then return end
 
-        -- STAGE 3: Confirmation -> click ACCEPT (check first, higher priority)
+        -- STAGE 3: Confirmation
         if hasTextLabel(tlt, "Confirmed!") or hasTextMatch(tlt, "%d+s Left") then
             local readyBtn = findByName(tlt, "ImageButton", "ReadyButton")
             if readyBtn then
-                print("[Auto Trade] Confirmation detected -> Accepting!")
+                print("[Auto Trade] Confirmation -> Accepting!")
                 clickElement(readyBtn)
                 return
             end
         end
 
-        -- STAGE 2: Click READY only when opponent has offered items
+        -- STAGE 2: Ready when opponent has items
         if opponentHasItems(tlt) then
             local readyBtn = findByName(tlt, "ImageButton", "ReadyButton")
             if readyBtn then
-                print("[Auto Trade] Opponent offered brainrot -> Clicking READY!")
+                print("[Auto Trade] Opponent offered -> READY!")
                 clickElement(readyBtn)
                 return
             end

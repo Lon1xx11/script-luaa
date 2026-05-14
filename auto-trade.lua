@@ -88,7 +88,7 @@ print("[Auto Trade] Auto Confirm: ON")
 print("=============================================")
 
 -- Main auto-clicker loop
-while task.wait(0.25) do
+while task.wait(0.15) do
     pcall(function()
         local gui = PlayerGui:FindFirstChild("DuelsMachinePrompt")
         if not gui then return end
@@ -100,39 +100,30 @@ while task.wait(0.25) do
                 yesBtn = findButtonByText(gui, "Accept")
             end
             if yesBtn then
-                print("[Auto Trade] Clicking Accept at position!")
+                print("[Auto Trade] Clicking Accept!")
                 clickButton(yesBtn)
-                task.wait(0.5)
+                task.wait(0.3)
                 return
             end
         end
 
-        -- STAGE 2: Trade menu -> click READY
-        if hasText(gui, "Select Brainrots to offer") and not hasText(gui, "Confirmed!") and not hasPattern(gui, "%d+s Left") then
-            local readyBtn = findButtonByText(gui, "READY")
-            if not readyBtn then
-                readyBtn = findButtonByText(gui, "Ready")
-            end
-            if readyBtn then
-                print("[Auto Trade] Clicking READY at position!")
-                clickButton(readyBtn)
-                task.wait(0.5)
-                return
-            end
+        -- STAGE 2: Trade menu -> SPAM READY
+        local readyBtn = findButtonByText(gui, "READY")
+        if not readyBtn then
+            readyBtn = findButtonByText(gui, "Ready")
+        end
+        if readyBtn then
+            print("[Auto Trade] Spamming READY!")
+            clickButton(readyBtn)
+            return
         end
 
-        -- STAGE 3: Confirmation -> click ACCEPT
-        if hasText(gui, "Confirmed!") or hasPattern(gui, "%d+s Left") then
-            local acceptBtn = findButtonByText(gui, "ACCEPT")
-            if not acceptBtn then
-                acceptBtn = findButtonByText(gui, "Accept")
-            end
-            if acceptBtn then
-                print("[Auto Trade] Clicking ACCEPT at position!")
-                clickButton(acceptBtn)
-                task.wait(0.5)
-                return
-            end
+        -- STAGE 3: Confirmation -> SPAM ACCEPT
+        local acceptBtn = findButtonByText(gui, "ACCEPT")
+        if acceptBtn then
+            print("[Auto Trade] Clicking ACCEPT!")
+            clickButton(acceptBtn)
+            return
         end
     end)
 end

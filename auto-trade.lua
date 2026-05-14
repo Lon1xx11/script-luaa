@@ -11,7 +11,7 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local guiInset = GuiService:GetGuiInset()
-local clickedReady = false
+local clickCount = 0
 
 local function clickElement(element)
     if not element then return end
@@ -50,24 +50,30 @@ print("[Auto Trade] 1 click when button turns GREEN")
 print("[Auto Trade] Method: VIM + GuiInset")
 print("=============================================")
 
--- Event: 1 click when ReadyButton turns green
+-- Event: 1 click each time ReadyButton turns green
+-- Click 1 = READY, Click 2 = ACCEPT
 local function watchReadyButton(tlt)
     local readyBtn = findByName(tlt, "ImageButton", "ReadyButton")
     if not readyBtn then return end
+    local lastGreen = false
 
     readyBtn:GetPropertyChangedSignal("BackgroundColor3"):Connect(function()
-        if isGreen(readyBtn) and not clickedReady then
-            clickedReady = true
-            print("[Auto Trade] GREEN -> 1 click!")
+        local green = isGreen(readyBtn)
+        if green and not lastGreen then
+            lastGreen = true
+            clickCount = clickCount + 1
+            print("[Auto Trade] GREEN -> click #" .. clickCount)
             task.wait(0.2)
             clickElement(readyBtn)
+        elseif not green then
+            lastGreen = false
         end
     end)
 end
 
 PlayerGui.ChildAdded:Connect(function(child)
     if child.Name == "TradeLiveTrade" then
-        clickedReady = false
+        clickCount = 0
         task.wait(0.5)
         pcall(function() watchReadyButton(child) end)
     end
@@ -100,16 +106,10 @@ while task.wait(4) do
             end
         end
 
-        -- Backup: 1 click if green and not clicked yet
+        -- Reset on trade close
         local tlt = PlayerGui:FindFirstChild("TradeLiveTrade")
-        if tlt then
-            local readyBtn = findByName(tlt, "ImageButton", "ReadyButton")
-            if readyBtn and isGreen(readyBtn) and not clickedReady then
-                clickedReady = true
-                clickElement(readyBtn)
-            end
-        else
-            clickedReady = false
+        if not tlt then
+            clickCount = 0
         end
     end)
 end

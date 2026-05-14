@@ -1,7 +1,8 @@
 -- Auto Trade Script for Steal a Brainrot (Volt)
--- Auto-clicker: spams click at button positions
--- Stage 1: Auto-accept trade request (ImageButton "Yes")
--- Stage 2+3: Spam click at READY/ACCEPT position
+-- Fully automatic, no keybind
+-- Accept: DuelsMachinePrompt -> Yes (ImageButton) or TradePrompts -> Yes
+-- Ready: TradeLiveTrade -> ReadyButton (ImageButton)
+-- Confirm: TradeLiveTrade -> ReadyButton (changes to ACCEPT after both ready)
 
 local Players = game:GetService("Players")
 local VIM = game:GetService("VirtualInputManager")
@@ -14,63 +15,68 @@ local function mouseClick(x, y)
     VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
 end
 
-local function getCenter(element)
+local function clickAtCenter(element)
+    if not element then return false end
     local pos = element.AbsolutePosition
     local size = element.AbsoluteSize
-    return pos.X + size.X / 2, pos.Y + size.Y / 2
+    local x = pos.X + size.X / 2
+    local y = pos.Y + size.Y / 2
+    if x > 0 and y > 0 then
+        mouseClick(x, y)
+        return true
+    end
+    return false
 end
 
-local function findButton(parent, name)
+local function findByName(parent, className, name)
     for _, desc in ipairs(parent:GetDescendants()) do
-        if desc:IsA("ImageButton") and desc.Name == name and desc.Visible then
+        if desc:IsA(className) and desc.Name == name and desc.Visible then
             return desc
         end
     end
     return nil
 end
 
-local function hasText(parent, text)
-    local target = string.lower(text)
-    for _, desc in ipairs(parent:GetDescendants()) do
-        if desc:IsA("TextLabel") and string.lower(desc.Text) == target then
-            return true
-        end
-    end
-    return false
-end
-
-local function hasPattern(parent, pattern)
-    for _, desc in ipairs(parent:GetDescendants()) do
-        if desc:IsA("TextLabel") and string.match(desc.Text, pattern) then
-            return true
-        end
-    end
-    return false
-end
-
 print("=============================================")
 print("[Auto Trade] Script loaded! (Volt)")
-print("[Auto Trade] Auto Accept: ON")
-print("[Auto Trade] Auto Ready/Confirm spam: ON")
+print("[Auto Trade] Auto Accept: ON (DuelsMachinePrompt/TradePrompts)")
+print("[Auto Trade] Auto Ready: ON (TradeLiveTrade -> ReadyButton)")
+print("[Auto Trade] Auto Confirm: ON")
 print("=============================================")
 
-while task.wait(1) do
+while task.wait(0.5) do
     pcall(function()
-        local gui = PlayerGui:FindFirstChild("DuelsMachinePrompt")
-        if not gui then return end
-
-        -- Stage 1: Trade Request -> click Accept button
-        if hasText(gui, "Trade Request") and hasPattern(gui, "wants to trade") then
-            local yesBtn = findButton(gui, "Yes")
+        -- STAGE 1: Auto-accept trade request
+        -- Check DuelsMachinePrompt
+        local dmp = PlayerGui:FindFirstChild("DuelsMachinePrompt")
+        if dmp then
+            local yesBtn = findByName(dmp, "ImageButton", "Yes")
             if yesBtn then
-                local x, y = getCenter(yesBtn)
-                mouseClick(x, y)
-                task.wait(0.3)
-                return
+                print("[Auto Trade] Accepting trade! (DuelsMachinePrompt)")
+                clickAtCenter(yesBtn)
+                task.wait(0.5)
             end
         end
 
-        -- Stage 2+3: Spam click at READY/ACCEPT position (998, 744)
-        mouseClick(998, 744)
+        -- Check TradePrompts
+        local tp = PlayerGui:FindFirstChild("TradePrompts")
+        if tp then
+            local yesBtn = findByName(tp, "ImageButton", "Yes")
+            if yesBtn then
+                print("[Auto Trade] Accepting trade! (TradePrompts)")
+                clickAtCenter(yesBtn)
+                task.wait(0.5)
+            end
+        end
+
+        -- STAGE 2+3: Auto-click ReadyButton (READY / ACCEPT)
+        local tlt = PlayerGui:FindFirstChild("TradeLiveTrade")
+        if tlt then
+            local readyBtn = findByName(tlt, "ImageButton", "ReadyButton")
+            if readyBtn then
+                print("[Auto Trade] Clicking ReadyButton!")
+                clickAtCenter(readyBtn)
+            end
+        end
     end)
 end

@@ -1,31 +1,39 @@
 -- Auto Trade Script for Steal a Brainrot (Volt)
 -- Fully automatic, no keybind
--- Accept: DuelsMachinePrompt -> Yes (ImageButton) or TradePrompts -> Yes
--- Ready: TradeLiveTrade -> ReadyButton (ImageButton)
--- Confirm: TradeLiveTrade -> ReadyButton (changes to ACCEPT after both ready)
+-- Accept: DuelsMachinePrompt -> Yes or TradePrompts -> Yes
+-- Ready/Confirm: TradeLiveTrade -> ReadyButton
 
 local Players = game:GetService("Players")
+local GuiService = game:GetService("GuiService")
 local VIM = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-local function mouseClick(x, y)
-    VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
-    task.wait(0.05)
-    VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
-end
+local guiInset = GuiService:GetGuiInset()
 
-local function clickAtCenter(element)
-    if not element then return false end
+local function clickElement(element)
+    if not element then return end
     local pos = element.AbsolutePosition
     local size = element.AbsoluteSize
     local x = pos.X + size.X / 2
-    local y = pos.Y + size.Y / 2
-    if x > 0 and y > 0 then
-        mouseClick(x, y)
-        return true
-    end
-    return false
+    local y = pos.Y + size.Y / 2 + guiInset.Y
+
+    -- VirtualInputManager mouse click
+    pcall(function()
+        VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
+        task.wait(0.05)
+        VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
+    end)
+
+    -- firesignal backup
+    pcall(function()
+        firesignal(element.MouseButton1Click)
+    end)
+    pcall(function()
+        firesignal(element.MouseButton1Down)
+        task.wait(0.05)
+        firesignal(element.MouseButton1Up)
+    end)
 end
 
 local function findByName(parent, className, name)
@@ -39,43 +47,37 @@ end
 
 print("=============================================")
 print("[Auto Trade] Script loaded! (Volt)")
-print("[Auto Trade] Auto Accept: ON (DuelsMachinePrompt/TradePrompts)")
-print("[Auto Trade] Auto Ready: ON (TradeLiveTrade -> ReadyButton)")
-print("[Auto Trade] Auto Confirm: ON")
+print("[Auto Trade] GuiInset Y = " .. guiInset.Y)
+print("[Auto Trade] Auto Accept + Ready + Confirm: ON")
 print("=============================================")
 
 while task.wait(0.5) do
     pcall(function()
-        -- STAGE 1: Auto-accept trade request
-        -- Check DuelsMachinePrompt
+        -- STAGE 1: Accept trade request
         local dmp = PlayerGui:FindFirstChild("DuelsMachinePrompt")
         if dmp then
             local yesBtn = findByName(dmp, "ImageButton", "Yes")
             if yesBtn then
-                print("[Auto Trade] Accepting trade! (DuelsMachinePrompt)")
-                clickAtCenter(yesBtn)
+                clickElement(yesBtn)
                 task.wait(0.5)
             end
         end
 
-        -- Check TradePrompts
         local tp = PlayerGui:FindFirstChild("TradePrompts")
         if tp then
             local yesBtn = findByName(tp, "ImageButton", "Yes")
             if yesBtn then
-                print("[Auto Trade] Accepting trade! (TradePrompts)")
-                clickAtCenter(yesBtn)
+                clickElement(yesBtn)
                 task.wait(0.5)
             end
         end
 
-        -- STAGE 2+3: Auto-click ReadyButton (READY / ACCEPT)
+        -- STAGE 2+3: Ready / Accept confirmation
         local tlt = PlayerGui:FindFirstChild("TradeLiveTrade")
         if tlt then
             local readyBtn = findByName(tlt, "ImageButton", "ReadyButton")
             if readyBtn then
-                print("[Auto Trade] Clicking ReadyButton!")
-                clickAtCenter(readyBtn)
+                clickElement(readyBtn)
             end
         end
     end)

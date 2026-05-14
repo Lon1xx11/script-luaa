@@ -1,6 +1,7 @@
 -- Auto Trade Script for Steal a Brainrot (Volt compatible)
--- Keybind: R — accepts trade request, clicks ready, confirms trade
--- GUI: DuelsMachinePrompt
+-- Keybind: R
+-- GUI path: PlayerGui.DuelsMachinePrompt
+-- Accept = ImageButton "Yes", Decline = ImageButton "No"
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -10,26 +11,24 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local KEYBIND = Enum.KeyCode.R
 
-local function clickElement(element)
-    if not element then return end
+local function clickButton(button)
+    if not button then return false end
 
-    local button = element
-    if not (button:IsA("TextButton") or button:IsA("ImageButton") or button:IsA("GuiButton")) then
-        button = element.Parent
-    end
-
+    -- Method 1: firesignal MouseButton1Click
     pcall(function()
         if firesignal then
             firesignal(button.MouseButton1Click)
         end
     end)
 
+    -- Method 2: fireclick
     pcall(function()
         if fireclick then
             fireclick(button)
         end
     end)
 
+    -- Method 3: VirtualInputManager (simulate mouse click at button center)
     pcall(function()
         local pos = button.AbsolutePosition
         local size = button.AbsoluteSize
@@ -40,10 +39,12 @@ local function clickElement(element)
         VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
     end)
 
+    -- Method 4: Activate
     pcall(function()
         button:Activate()
     end)
 
+    -- Method 5: getconnections + Fire
     pcall(function()
         if getconnections then
             for _, conn in ipairs(getconnections(button.MouseButton1Click)) do
@@ -54,6 +55,7 @@ local function clickElement(element)
         end
     end)
 
+    -- Method 6: MouseButton1Down + MouseButton1Up
     pcall(function()
         if firesignal then
             firesignal(button.MouseButton1Down)
@@ -62,142 +64,117 @@ local function clickElement(element)
         end
     end)
 
-    -- Also try clicking the element itself if it's different from button
-    if element ~= button then
-        pcall(function()
-            local pos = element.AbsolutePosition
-            local size = element.AbsoluteSize
-            local x = pos.X + size.X / 2
-            local y = pos.Y + size.Y / 2
-            VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
-            task.wait(0.05)
-            VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
-        end)
+    return true
+end
 
-        pcall(function()
-            if firesignal and element:IsA("GuiObject") then
-                firesignal(element.MouseButton1Click)
-            end
-        end)
+local function findImageButtonByName(parent, name)
+    for _, desc in ipairs(parent:GetDescendants()) do
+        if desc:IsA("ImageButton") and desc.Name == name then
+            return desc
+        end
+    end
+    return nil
+end
 
-        pcall(function()
-            if getconnections then
-                for _, conn in ipairs(getconnections(element.MouseButton1Click)) do
-                    pcall(function()
-                        conn:Fire()
-                    end)
+local function findImageButtonByChildText(parent, childText)
+    local target = string.lower(childText)
+    for _, desc in ipairs(parent:GetDescendants()) do
+        if desc:IsA("ImageButton") then
+            for _, child in ipairs(desc:GetChildren()) do
+                if (child:IsA("TextLabel") or child:IsA("TextButton")) then
+                    if string.lower(child.Text) == target then
+                        return desc
+                    end
                 end
             end
-        end)
+        end
     end
+    return nil
 end
 
-local function findTextElement(parent, targetText)
+local function hasTextLabel(parent, targetText)
     local target = string.lower(targetText)
     for _, desc in ipairs(parent:GetDescendants()) do
-        if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+        if desc:IsA("TextLabel") then
             if string.lower(desc.Text) == target then
-                return desc
+                return true
             end
         end
     end
-    return nil
+    return false
 end
 
-local function findTextMatch(parent, pattern)
+local function hasTextMatch(parent, pattern)
     for _, desc in ipairs(parent:GetDescendants()) do
-        if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+        if desc:IsA("TextLabel") then
             if string.match(desc.Text, pattern) then
-                return desc
+                return true
             end
         end
     end
-    return nil
+    return false
 end
 
 local function onKeyPress()
-    -- Look for DuelsMachinePrompt GUI specifically
     local tradeGui = PlayerGui:FindFirstChild("DuelsMachinePrompt")
+    if not tradeGui then
+        print("[Auto Trade] R pressed -> DuelsMachinePrompt not found")
+        return
+    end
 
-    if tradeGui then
-        -- 1: Trade Request popup -> click Accept
-        local tradeRequestLabel = findTextElement(tradeGui, "Trade Request")
-        if tradeRequestLabel then
-            local acceptLabel = findTextElement(tradeGui, "Accept")
-            if acceptLabel then
-                print("[Auto Trade] R -> Accepting Trade Request!")
-                clickElement(acceptLabel)
-                return
-            end
+    -- STAGE 1: Trade Request popup -> click "Yes" (Accept)
+    if hasTextLabel(tradeGui, "Trade Request") and hasTextMatch(tradeGui, "wants to trade") then
+        -- Try by name first
+        local yesBtn = findImageButtonByName(tradeGui, "Yes")
+        if not yesBtn then
+            yesBtn = findImageButtonByChildText(tradeGui, "Accept")
         end
-
-        -- 2: Trade menu -> click READY
-        local selectLabel = findTextElement(tradeGui, "Select Brainrots to offer")
-        if selectLabel then
-            local readyLabel = findTextElement(tradeGui, "READY")
-            if not readyLabel then
-                readyLabel = findTextElement(tradeGui, "Ready")
-            end
-            if readyLabel then
-                print("[Auto Trade] R -> Clicking READY!")
-                clickElement(readyLabel)
-                return
-            end
-        end
-
-        -- 3: Confirmation -> click ACCEPT
-        local confirmedLabel = findTextElement(tradeGui, "Confirmed!")
-        local timerLabel = findTextMatch(tradeGui, "%d+s Left")
-        if confirmedLabel or timerLabel then
-            local acceptLabel = findTextElement(tradeGui, "ACCEPT")
-            if not acceptLabel then
-                acceptLabel = findTextElement(tradeGui, "Accept")
-            end
-            if acceptLabel then
-                print("[Auto Trade] R -> Confirming Trade!")
-                clickElement(acceptLabel)
-                return
-            end
+        if yesBtn then
+            print("[Auto Trade] R -> Accepting Trade Request! (clicking 'Yes' ImageButton)")
+            clickButton(yesBtn)
+            return
+        else
+            print("[Auto Trade] R -> Trade Request found but 'Yes' button not found!")
         end
     end
 
-    -- Fallback: search all GUIs
-    for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if not gui:IsA("ScreenGui") then continue end
-
-        local tradeRequestLabel = findTextElement(gui, "Trade Request")
-        if tradeRequestLabel then
-            local acceptLabel = findTextElement(gui, "Accept")
-            if acceptLabel then
-                print("[Auto Trade] R -> Accepting Trade Request! (fallback)")
-                clickElement(acceptLabel)
-                return
-            end
+    -- STAGE 2: Trade menu -> click READY
+    if hasTextLabel(tradeGui, "Select Brainrots to offer") then
+        local readyBtn = findImageButtonByChildText(tradeGui, "READY")
+        if not readyBtn then
+            readyBtn = findImageButtonByChildText(tradeGui, "Ready")
         end
-
-        local selectLabel = findTextElement(gui, "Select Brainrots to offer")
-        if selectLabel then
-            local readyLabel = findTextElement(gui, "READY") or findTextElement(gui, "Ready")
-            if readyLabel then
-                print("[Auto Trade] R -> Clicking READY! (fallback)")
-                clickElement(readyLabel)
-                return
-            end
+        if not readyBtn then
+            readyBtn = findImageButtonByName(tradeGui, "Ready")
         end
-
-        local confirmedLabel = findTextElement(gui, "Confirmed!")
-        local timerLabel = findTextMatch(gui, "%d+s Left")
-        if confirmedLabel or timerLabel then
-            local acceptLabel = findTextElement(gui, "ACCEPT") or findTextElement(gui, "Accept")
-            if acceptLabel then
-                print("[Auto Trade] R -> Confirming Trade! (fallback)")
-                clickElement(acceptLabel)
-                return
-            end
+        if readyBtn then
+            print("[Auto Trade] R -> Clicking READY!")
+            clickButton(readyBtn)
+            return
+        else
+            print("[Auto Trade] R -> Trade menu found but READY button not found!")
         end
     end
 
-    print("[Auto Trade] R pressed -> No trade UI found")
+    -- STAGE 3: Confirmation -> click ACCEPT
+    if hasTextLabel(tradeGui, "Confirmed!") or hasTextMatch(tradeGui, "%d+s Left") then
+        local acceptBtn = findImageButtonByChildText(tradeGui, "ACCEPT")
+        if not acceptBtn then
+            acceptBtn = findImageButtonByChildText(tradeGui, "Accept")
+        end
+        if not acceptBtn then
+            acceptBtn = findImageButtonByName(tradeGui, "Yes")
+        end
+        if acceptBtn then
+            print("[Auto Trade] R -> Confirming Trade!")
+            clickButton(acceptBtn)
+            return
+        else
+            print("[Auto Trade] R -> Confirmation found but ACCEPT button not found!")
+        end
+    end
+
+    print("[Auto Trade] R pressed -> No active trade stage detected")
 end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -208,8 +185,9 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 print("=============================================")
-print("[Auto Trade] Script loaded! (Volt compatible)")
+print("[Auto Trade] Script loaded! (Volt)")
 print("[Auto Trade] GUI: DuelsMachinePrompt")
+print("[Auto Trade] Buttons: ImageButton 'Yes'/'No'")
 print("[Auto Trade] Keybind: R")
 print("[Auto Trade] Press R to:")
 print("  - Accept trade requests")

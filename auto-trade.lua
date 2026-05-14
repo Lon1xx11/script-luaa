@@ -11,6 +11,8 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local guiInset = GuiService:GetGuiInset()
 
+local clickedReady = false
+
 local function clickElement(element)
     if not element then return end
     local pos = element.AbsolutePosition
@@ -66,8 +68,9 @@ local function watchReadyButton(tlt)
     if not readyBtn then return end
 
     readyBtn:GetPropertyChangedSignal("BackgroundColor3"):Connect(function()
-        if isGreen(readyBtn) then
-            print("[Auto Trade] ReadyButton turned GREEN -> clicking!")
+        if isGreen(readyBtn) and not clickedReady then
+            clickedReady = true
+            print("[Auto Trade] ReadyButton turned GREEN -> clicking once!")
             task.wait(0.2)
             clickElement(readyBtn)
         end
@@ -110,14 +113,20 @@ while task.wait(0.5) do
             end
         end
 
-        -- STAGE 2+3: Backup polling - click ReadyButton only if GREEN
+        -- STAGE 2+3: Backup polling - click ReadyButton only if GREEN and not already clicked
         local tlt = PlayerGui:FindFirstChild("TradeLiveTrade")
         if tlt then
             local readyBtn = findByName(tlt, "ImageButton", "ReadyButton")
-            if readyBtn and isGreen(readyBtn) then
-                print("[Auto Trade] ReadyButton is GREEN -> clicking!")
+            if readyBtn and isGreen(readyBtn) and not clickedReady then
+                clickedReady = true
+                print("[Auto Trade] ReadyButton is GREEN -> clicking once!")
                 clickElement(readyBtn)
             end
+            if not tlt.Parent then
+                clickedReady = false
+            end
+        else
+            clickedReady = false
         end
     end)
 end

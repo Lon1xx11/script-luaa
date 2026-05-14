@@ -1,73 +1,24 @@
--- Auto Trade Script for Steal a Brainrot (Volt compatible)
--- Keybind: R
--- GUI path: PlayerGui.DuelsMachinePrompt
--- Accept = ImageButton "Yes", Decline = ImageButton "No"
+-- Auto Trade Script for Steal a Brainrot (Volt)
+-- Fully automatic: no keybind needed
+-- Auto-accepts trade requests + auto-confirms trade
+-- Click method: firesignal (confirmed working in Volt)
+-- Path: PlayerGui.DuelsMachinePrompt.DuelsMachinePrompt.InviteTemplate.Yes
 
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-local KEYBIND = Enum.KeyCode.R
-
-local function clickButton(button)
-    if not button then return false end
-
-    -- Method 1: firesignal MouseButton1Click
+local function clickBtn(btn)
+    if not btn then return end
+    pcall(function() firesignal(btn.MouseButton1Click) end)
     pcall(function()
-        if firesignal then
-            firesignal(button.MouseButton1Click)
-        end
-    end)
-
-    -- Method 2: fireclick
-    pcall(function()
-        if fireclick then
-            fireclick(button)
-        end
-    end)
-
-    -- Method 3: VirtualInputManager (simulate mouse click at button center)
-    pcall(function()
-        local pos = button.AbsolutePosition
-        local size = button.AbsoluteSize
-        local x = pos.X + size.X / 2
-        local y = pos.Y + size.Y / 2
-        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+        firesignal(btn.MouseButton1Down)
         task.wait(0.05)
-        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+        firesignal(btn.MouseButton1Up)
     end)
-
-    -- Method 4: Activate
-    pcall(function()
-        button:Activate()
-    end)
-
-    -- Method 5: getconnections + Fire
-    pcall(function()
-        if getconnections then
-            for _, conn in ipairs(getconnections(button.MouseButton1Click)) do
-                pcall(function()
-                    conn:Fire()
-                end)
-            end
-        end
-    end)
-
-    -- Method 6: MouseButton1Down + MouseButton1Up
-    pcall(function()
-        if firesignal then
-            firesignal(button.MouseButton1Down)
-            task.wait(0.05)
-            firesignal(button.MouseButton1Up)
-        end
-    end)
-
-    return true
 end
 
-local function findImageButtonByName(parent, name)
+local function findImageButton(parent, name)
     for _, desc in ipairs(parent:GetDescendants()) do
         if desc:IsA("ImageButton") and desc.Name == name then
             return desc
@@ -76,15 +27,13 @@ local function findImageButtonByName(parent, name)
     return nil
 end
 
-local function findImageButtonByChildText(parent, childText)
-    local target = string.lower(childText)
+local function findButtonByChildText(parent, text)
+    local target = string.lower(text)
     for _, desc in ipairs(parent:GetDescendants()) do
-        if desc:IsA("ImageButton") then
+        if desc:IsA("ImageButton") or desc:IsA("TextButton") then
             for _, child in ipairs(desc:GetChildren()) do
-                if (child:IsA("TextLabel") or child:IsA("TextButton")) then
-                    if string.lower(child.Text) == target then
-                        return desc
-                    end
+                if child:IsA("TextLabel") and string.lower(child.Text) == target then
+                    return desc
                 end
             end
         end
@@ -92,13 +41,11 @@ local function findImageButtonByChildText(parent, childText)
     return nil
 end
 
-local function hasTextLabel(parent, targetText)
-    local target = string.lower(targetText)
+local function hasText(parent, text)
+    local target = string.lower(text)
     for _, desc in ipairs(parent:GetDescendants()) do
-        if desc:IsA("TextLabel") then
-            if string.lower(desc.Text) == target then
-                return true
-            end
+        if desc:IsA("TextLabel") and string.lower(desc.Text) == target then
+            return true
         end
     end
     return false
@@ -106,91 +53,107 @@ end
 
 local function hasTextMatch(parent, pattern)
     for _, desc in ipairs(parent:GetDescendants()) do
-        if desc:IsA("TextLabel") then
-            if string.match(desc.Text, pattern) then
-                return true
-            end
+        if desc:IsA("TextLabel") and string.match(desc.Text, pattern) then
+            return true
         end
     end
     return false
 end
 
-local function onKeyPress()
-    local tradeGui = PlayerGui:FindFirstChild("DuelsMachinePrompt")
-    if not tradeGui then
-        print("[Auto Trade] R pressed -> DuelsMachinePrompt not found")
-        return
-    end
+local function tryAcceptTradeRequest(tradeGui)
+    if not hasText(tradeGui, "Trade Request") then return false end
+    if not hasTextMatch(tradeGui, "wants to trade") then return false end
 
-    -- STAGE 1: Trade Request popup -> click "Yes" (Accept)
-    if hasTextLabel(tradeGui, "Trade Request") and hasTextMatch(tradeGui, "wants to trade") then
-        -- Try by name first
-        local yesBtn = findImageButtonByName(tradeGui, "Yes")
-        if not yesBtn then
-            yesBtn = findImageButtonByChildText(tradeGui, "Accept")
-        end
-        if yesBtn then
-            print("[Auto Trade] R -> Accepting Trade Request! (clicking 'Yes' ImageButton)")
-            clickButton(yesBtn)
-            return
-        else
-            print("[Auto Trade] R -> Trade Request found but 'Yes' button not found!")
-        end
+    local yesBtn = findImageButton(tradeGui, "Yes")
+    if not yesBtn then
+        yesBtn = findButtonByChildText(tradeGui, "Accept")
     end
-
-    -- STAGE 2: Trade menu -> click READY
-    if hasTextLabel(tradeGui, "Select Brainrots to offer") then
-        local readyBtn = findImageButtonByChildText(tradeGui, "READY")
-        if not readyBtn then
-            readyBtn = findImageButtonByChildText(tradeGui, "Ready")
-        end
-        if not readyBtn then
-            readyBtn = findImageButtonByName(tradeGui, "Ready")
-        end
-        if readyBtn then
-            print("[Auto Trade] R -> Clicking READY!")
-            clickButton(readyBtn)
-            return
-        else
-            print("[Auto Trade] R -> Trade menu found but READY button not found!")
-        end
+    if yesBtn then
+        print("[Auto Trade] Auto-accepting trade request!")
+        clickBtn(yesBtn)
+        return true
     end
-
-    -- STAGE 3: Confirmation -> click ACCEPT
-    if hasTextLabel(tradeGui, "Confirmed!") or hasTextMatch(tradeGui, "%d+s Left") then
-        local acceptBtn = findImageButtonByChildText(tradeGui, "ACCEPT")
-        if not acceptBtn then
-            acceptBtn = findImageButtonByChildText(tradeGui, "Accept")
-        end
-        if not acceptBtn then
-            acceptBtn = findImageButtonByName(tradeGui, "Yes")
-        end
-        if acceptBtn then
-            print("[Auto Trade] R -> Confirming Trade!")
-            clickButton(acceptBtn)
-            return
-        else
-            print("[Auto Trade] R -> Confirmation found but ACCEPT button not found!")
-        end
-    end
-
-    print("[Auto Trade] R pressed -> No active trade stage detected")
+    return false
 end
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == KEYBIND then
-        pcall(onKeyPress)
+local function tryClickReady(tradeGui)
+    if not hasText(tradeGui, "Select Brainrots to offer") then return false end
+    if hasText(tradeGui, "Confirmed!") then return false end
+    if hasTextMatch(tradeGui, "%d+s Left") then return false end
+
+    local readyBtn = findButtonByChildText(tradeGui, "READY")
+    if not readyBtn then
+        readyBtn = findButtonByChildText(tradeGui, "Ready")
+    end
+    if readyBtn then
+        print("[Auto Trade] Auto-clicking READY!")
+        clickBtn(readyBtn)
+        return true
+    end
+    return false
+end
+
+local function tryConfirmTrade(tradeGui)
+    if not (hasText(tradeGui, "Confirmed!") or hasTextMatch(tradeGui, "%d+s Left")) then return false end
+
+    local acceptBtn = findButtonByChildText(tradeGui, "ACCEPT")
+    if not acceptBtn then
+        acceptBtn = findButtonByChildText(tradeGui, "Accept")
+    end
+    if not acceptBtn then
+        acceptBtn = findImageButton(tradeGui, "Yes")
+    end
+    if acceptBtn then
+        print("[Auto Trade] Auto-confirming trade!")
+        clickBtn(acceptBtn)
+        return true
+    end
+    return false
+end
+
+local function checkAndAct()
+    local tradeGui = PlayerGui:FindFirstChild("DuelsMachinePrompt")
+    if not tradeGui then return end
+
+    if tryAcceptTradeRequest(tradeGui) then return end
+    if tryClickReady(tradeGui) then return end
+    if tryConfirmTrade(tradeGui) then return end
+end
+
+-- Event triggers for instant reaction
+local function setupEvents(gui)
+    gui.DescendantAdded:Connect(function(desc)
+        task.wait(0.15)
+        pcall(checkAndAct)
+    end)
+end
+
+for _, gui in ipairs(PlayerGui:GetChildren()) do
+    if gui.Name == "DuelsMachinePrompt" then
+        pcall(function() setupEvents(gui) end)
+    end
+end
+
+PlayerGui.ChildAdded:Connect(function(gui)
+    if gui.Name == "DuelsMachinePrompt" then
+        task.wait(0.1)
+        pcall(function() setupEvents(gui) end)
+        pcall(checkAndAct)
+    end
+end)
+
+-- Backup polling loop
+spawn(function()
+    while task.wait(0.3) do
+        pcall(checkAndAct)
     end
 end)
 
 print("=============================================")
 print("[Auto Trade] Script loaded! (Volt)")
-print("[Auto Trade] GUI: DuelsMachinePrompt")
-print("[Auto Trade] Buttons: ImageButton 'Yes'/'No'")
-print("[Auto Trade] Keybind: R")
-print("[Auto Trade] Press R to:")
-print("  - Accept trade requests")
-print("  - Click Ready in trade menu")
-print("  - Confirm trade")
+print("[Auto Trade] Mode: FULLY AUTOMATIC")
+print("[Auto Trade] Click: firesignal")
+print("[Auto Trade] Auto Accept: ON")
+print("[Auto Trade] Auto Ready: ON")
+print("[Auto Trade] Auto Confirm: ON")
 print("=============================================")

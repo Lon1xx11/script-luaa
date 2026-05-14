@@ -51,7 +51,7 @@ print("[Auto Trade] GuiInset Y = " .. guiInset.Y)
 print("[Auto Trade] Auto Accept + Ready + Confirm: ON")
 print("=============================================")
 
-while task.wait(0.5) do
+while task.wait(4) do
     pcall(function()
         -- STAGE 1: Accept trade request
         local dmp = PlayerGui:FindFirstChild("DuelsMachinePrompt")

@@ -2,6 +2,7 @@
 -- Fully automatic, trigger-based
 -- Accept: when Trade Request appears
 -- Ready/Confirm: 1 click when ReadyButton turns GREEN
+-- Click method: VIM + GuiInset (confirmed working)
 
 local Players = game:GetService("Players")
 local GuiService = game:GetService("GuiService")
@@ -23,15 +24,6 @@ local function clickElement(element)
         VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
         task.wait(0.05)
         VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
-    end)
-
-    pcall(function()
-        firesignal(element.MouseButton1Click)
-    end)
-    pcall(function()
-        firesignal(element.MouseButton1Down)
-        task.wait(0.05)
-        firesignal(element.MouseButton1Up)
     end)
 end
 
@@ -55,9 +47,10 @@ end
 print("=============================================")
 print("[Auto Trade] Script loaded! (Volt)")
 print("[Auto Trade] 1 click when button turns GREEN")
+print("[Auto Trade] Method: VIM + GuiInset")
 print("=============================================")
 
--- Event: click once when ReadyButton turns green
+-- Event: 1 click when ReadyButton turns green
 local function watchReadyButton(tlt)
     local readyBtn = findByName(tlt, "ImageButton", "ReadyButton")
     if not readyBtn then return end
@@ -85,6 +78,7 @@ if existing then
     pcall(function() watchReadyButton(existing) end)
 end
 
+-- Polling loop
 while task.wait(4) do
     pcall(function()
         -- Accept trade request
@@ -112,7 +106,6 @@ while task.wait(4) do
             local readyBtn = findByName(tlt, "ImageButton", "ReadyButton")
             if readyBtn and isGreen(readyBtn) and not clickedReady then
                 clickedReady = true
-                print("[Auto Trade] GREEN -> 1 click! (poll)")
                 clickElement(readyBtn)
             end
         else

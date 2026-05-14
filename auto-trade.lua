@@ -54,7 +54,7 @@ print("[Auto Trade] Auto Accept: ON")
 print("[Auto Trade] Auto Ready/Confirm spam: ON")
 print("=============================================")
 
-while task.wait(0.1) do
+while task.wait(1) do
     pcall(function()
         local gui = PlayerGui:FindFirstChild("DuelsMachinePrompt")
         if not gui then return end
